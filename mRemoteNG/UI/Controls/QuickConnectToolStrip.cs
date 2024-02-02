@@ -29,6 +29,7 @@ namespace mRemoteNG.UI.Controls
         private readonly ThemeManager _themeManager;
         private WeifenLuo.WinFormsUI.Docking.VisualStudioToolStripExtender vsToolStripExtender;
         private readonly DisplayProperties _display;
+        private MrngButton _btnQuickConnectRDP;
 
 
         public QuickConnectToolStrip()

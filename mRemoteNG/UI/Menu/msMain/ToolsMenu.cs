@@ -2,6 +2,8 @@
 using System.Runtime.Versioning;
 using System.Windows.Forms;
 using mRemoteNG.App;
+using mRemoteNG.Connection.Protocol.RDP;
+using mRemoteNG.Container;
 using mRemoteNG.Credential;
 using mRemoteNG.Resources.Language;
 
@@ -14,6 +16,7 @@ namespace mRemoteNG.UI.Menu
         private ToolStripMenuItem _mMenToolsExternalApps;
         private ToolStripMenuItem _mMenToolsPortScan;
         private ToolStripMenuItem _mMenToolsUvncsc;
+        private ToolStripMenuItem _mMenToolsQConnectRDPFile;
 
         public Form MainForm { get; set; }
         public ICredentialRepositoryList CredentialProviderCatalog { get; set; }
@@ -29,6 +32,7 @@ namespace mRemoteNG.UI.Menu
             _mMenToolsUvncsc = new ToolStripMenuItem();
             _mMenToolsExternalApps = new ToolStripMenuItem();
             _mMenToolsPortScan = new ToolStripMenuItem();
+            _mMenToolsQConnectRDPFile = new ToolStripMenuItem();
             // 
             // mMenTools
             // 
@@ -37,7 +41,8 @@ namespace mRemoteNG.UI.Menu
                 _mMenToolsSshTransfer,
                 _mMenToolsUvncsc,
                 _mMenToolsExternalApps,
-                _mMenToolsPortScan
+                _mMenToolsPortScan,
+                _mMenToolsQConnectRDPFile
             });
             Name = "mMenTools";
             Size = new System.Drawing.Size(48, 20);
@@ -74,6 +79,14 @@ namespace mRemoteNG.UI.Menu
             _mMenToolsPortScan.Size = new System.Drawing.Size(184, 22);
             _mMenToolsPortScan.Text = Language.PortScan;
             _mMenToolsPortScan.Click += mMenToolsPortScan_Click;
+            // 
+            // mMenToolsPortScan
+            // 
+            _mMenToolsQConnectRDPFile.Image = Properties.Resources.OpenFile_16x;
+            _mMenToolsQConnectRDPFile.Name = "mMenToolsQConnectRDPFile";
+            _mMenToolsQConnectRDPFile.Size = new System.Drawing.Size(184, 22);
+            _mMenToolsQConnectRDPFile.Text = Language.QConnectRDPFile;
+            _mMenToolsQConnectRDPFile.Click += mMenToolsQConnectRDPFile_Click;
         }
 
         public void ApplyLanguage()
@@ -109,6 +122,36 @@ namespace mRemoteNG.UI.Menu
         private void mMenToolsOptions_Click(object sender, EventArgs e)
         {
             Windows.Show(WindowType.Options);
+        }
+
+        private void mMenToolsQConnectRDPFile_Click(object sender, EventArgs e)
+        {
+            try
+            {
+
+                var tempContainer = new ContainerInfo();
+                Import.ImportFromFile(tempContainer);
+                foreach (var connection in tempContainer.Children)
+                {
+
+                    try
+                    {
+                        connection.Resolution = RDPResolutions.FitToWindow;
+                        Runtime.ConnectionInitiator.OpenConnection(connection, Connection.ConnectionInfo.Force.DoNotJump);
+                    }
+                    catch (Exception ex)
+                    {
+                        Runtime.MessageCollector.AddExceptionStackTrace("mMenToolsQConnectRDPFile_Click() failed.", ex);
+                    }
+
+                }
+
+            }
+            catch (Exception ex)
+            {
+                Runtime.MessageCollector.AddExceptionMessage("Unable to import file.", ex);
+            }
+
         }
 
         #endregion

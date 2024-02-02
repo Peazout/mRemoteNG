@@ -4676,6 +4676,15 @@ namespace mRemoteNG.Resources.Language {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Quick connect RDP file.
+        /// </summary>
+        internal static string QConnectRDPFile {
+            get {
+                return ResourceManager.GetString("QConnectRDPFile", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Quick: {0}.
         /// </summary>
         internal static string Quick {
