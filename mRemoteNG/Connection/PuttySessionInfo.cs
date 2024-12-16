@@ -8,6 +8,7 @@ using mRemoteNG.Tree;
 using mRemoteNG.Tree.Root;
 using mRemoteNG.Resources.Language;
 using System.Runtime.Versioning;
+using System.Security;
 
 namespace mRemoteNG.Connection
 {
@@ -42,7 +43,7 @@ namespace mRemoteNG.Connection
 
         [ReadOnly(true)] public override string Username { get; set; }
 
-        [ReadOnly(true), Browsable(false)] public override string Password { get; set; }
+        [ReadOnly(true), Browsable(false)] public override SecureString Password { get; set; }
 
         [ReadOnly(true)] public override ProtocolType Protocol { get; set; }
 
@@ -63,7 +64,7 @@ namespace mRemoteNG.Connection
         {
             try
             {
-                var puttyProcess = new PuttyProcessController();
+                PuttyProcessController puttyProcess = new();
                 if (!puttyProcess.Start())
                 {
                     return;
@@ -79,9 +80,7 @@ namespace mRemoteNG.Connection
             }
             catch (Exception ex)
             {
-                Runtime.MessageCollector.AddMessage(MessageClass.ErrorMsg,
-                                                    Language.ErrorCouldNotLaunchPutty + Environment.NewLine +
-                                                    ex.Message);
+                Runtime.MessageCollector.AddMessage(MessageClass.ErrorMsg, Language.ErrorCouldNotLaunchPutty + Environment.NewLine + ex.Message);
             }
         }
 

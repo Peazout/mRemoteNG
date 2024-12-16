@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
+using System.Reflection;
 using System.Runtime.Versioning;
 using System.Threading;
 using System.Windows.Forms;
@@ -14,6 +16,7 @@ namespace mRemoteNG.App
     {
         private static Mutex _mutex;
         private static FrmSplashScreenNew _frmSplashScreen = null;
+        private static string customResourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Languages");
 
         /// <summary>
         /// The main entry point for the application.
@@ -21,45 +24,80 @@ namespace mRemoteNG.App
         [STAThread]
         public static void Main(string[] args)
         {
-            var settingsManager = new LocalSettingsManager();
-
-            // Check if the database exists
-            if (settingsManager.DatabaseExists())
+            Trace.WriteLine("!!!!!!=============== TEST ==================!!!!!!!!!!!!!");
+            // Forcing to load System.Configuration.ConfigurationManager before any other assembly to be able to check settings 
+            try
             {
-                Console.WriteLine("Database exists.");
+                string assemblyFile = "System.Configuration.ConfigurationManager" + ".dll";
+                string assemblyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assemblies", assemblyFile);
+
+
+                if (File.Exists(assemblyPath))
+                {
+                    Assembly.LoadFrom(assemblyPath);
+                }
             }
-            else
+            catch (FileNotFoundException ex)
             {
-                Console.WriteLine("Database does not exist. Creating...");
-                settingsManager.CreateDatabase();
+               Trace.WriteLine("Error occured: " + ex.Message);
             }
 
-            if (Properties.OptionsStartupExitPage.Default.SingleInstance)
+            //Subscribe to AssemblyResolve event
+            AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
+
+            //Check if local settings DB exist or accessible
+            CheckLockalDB();
+
+            Lazy<bool> singleInstanceOption = new Lazy<bool>(() => Properties.OptionsStartupExitPage.Default.SingleInstance);
+
+            if (singleInstanceOption.Value)
+            {
                 StartApplicationAsSingleInstance();
+            }
             else
+            {
                 StartApplication();
+            }
         }
 
+        private static void CheckLockalDB()
+        {
+            LocalSettingsDBManager settingsManager = new LocalSettingsDBManager(dbPath: "mRemoteNG.appSettings", useEncryption: false, schemaFilePath: "");
+        }
+        private static Assembly OnAssemblyResolve(object sender, ResolveEventArgs resolveArgs)
+        {
+            string assemblyName = new AssemblyName(resolveArgs.Name).Name.Replace(".resources", string.Empty);
+            string assemblyFile = assemblyName + ".dll";
+            string assemblyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assemblies", assemblyFile);
+
+
+            if (File.Exists(assemblyPath))
+            {
+                return Assembly.LoadFrom(assemblyPath);
+            }
+            return null;
+        }
+        
         private static void StartApplication()
         {
             CatchAllUnhandledExceptions();
-            System.Windows.Forms.Application.EnableVisualStyles();
-            System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
 
             _frmSplashScreen = FrmSplashScreenNew.GetInstance();
 
-            var targetScreen = Screen.PrimaryScreen;
+            Screen targetScreen = Screen.PrimaryScreen;
 
             Rectangle viewport = targetScreen.WorkingArea;
             _frmSplashScreen.Top = viewport.Top;
             _frmSplashScreen.Left = viewport.Left;
             // normally it should be screens[1] however due DPI apply 1 size "same" as default with 100%
-            _frmSplashScreen.Left = viewport.Left + (targetScreen.Bounds.Size.Width / 2) - (_frmSplashScreen.Width / 2);
-            _frmSplashScreen.Top = viewport.Top + (targetScreen.Bounds.Size.Height / 2) - (_frmSplashScreen.Height / 2);
+            _frmSplashScreen.Left = viewport.Left + (targetScreen.Bounds.Size.Width - _frmSplashScreen.Width) / 2;
+            _frmSplashScreen.Top = viewport.Top + (targetScreen.Bounds.Size.Height - _frmSplashScreen.Height) / 2;
             _frmSplashScreen.ShowInTaskbar = false;
             _frmSplashScreen.Show();
-            
-            System.Windows.Forms.Application.Run(FrmMain.Default);
+
+            Application.Run(FrmMain.Default);
         }
 
         public static void CloseSingletonInstanceMutex()
@@ -70,7 +108,7 @@ namespace mRemoteNG.App
         private static void StartApplicationAsSingleInstance()
         {
             const string mutexID = "mRemoteNG_SingleInstanceMutex";
-            _mutex = new Mutex(false, mutexID, out var newInstanceCreated);
+            _mutex = new Mutex(false, mutexID, out bool newInstanceCreated);
             if (!newInstanceCreated)
             {
                 SwitchToCurrentInstance();
@@ -83,7 +121,7 @@ namespace mRemoteNG.App
 
         private static void SwitchToCurrentInstance()
         {
-            var singletonInstanceWindowHandle = GetRunningSingletonInstanceWindowHandle();
+            IntPtr singletonInstanceWindowHandle = GetRunningSingletonInstanceWindowHandle();
             if (singletonInstanceWindowHandle == IntPtr.Zero) return;
             if (NativeMethods.IsIconic(singletonInstanceWindowHandle) != 0)
                 _ = NativeMethods.ShowWindow(singletonInstanceWindowHandle, (int)NativeMethods.SW_RESTORE);
@@ -92,9 +130,9 @@ namespace mRemoteNG.App
 
         private static IntPtr GetRunningSingletonInstanceWindowHandle()
         {
-            var windowHandle = IntPtr.Zero;
-            var currentProcess = Process.GetCurrentProcess();
-            foreach (var enumeratedProcess in Process.GetProcessesByName(currentProcess.ProcessName))
+            IntPtr windowHandle = IntPtr.Zero;
+            Process currentProcess = Process.GetCurrentProcess();
+            foreach (Process enumeratedProcess in Process.GetProcessesByName(currentProcess.ProcessName))
             {
                 if (enumeratedProcess.Id != currentProcess.Id &&
                     enumeratedProcess.MainModule.FileName == currentProcess.MainModule.FileName &&
@@ -119,7 +157,7 @@ namespace mRemoteNG.App
 
             if (FrmMain.Default.IsDisposed) return;
 
-            var window = new FrmUnhandledException(e.Exception, false);
+            FrmUnhandledException window = new(e.Exception, false);
             window.ShowDialog(FrmMain.Default);
         }
 
@@ -129,8 +167,9 @@ namespace mRemoteNG.App
             //if (!FrmSplashScreenNew.GetInstance().IsDisposed)
             //    FrmSplashScreenNew.GetInstance().Close();
 
-            var window = new FrmUnhandledException(e.ExceptionObject as Exception, e.IsTerminating);
+            FrmUnhandledException window = new(e.ExceptionObject as Exception, e.IsTerminating);
             window.ShowDialog(FrmMain.Default);
         }
+        
     }
 }

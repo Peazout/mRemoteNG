@@ -8,6 +8,7 @@ using mRemoteNG.Connection.Protocol.Http;
 using mRemoteNG.Connection.Protocol.RDP;
 using mRemoteNG.Connection.Protocol.VNC;
 using mRemoteNG.Container;
+using mRemoteNG.Security;
 using mRemoteNG.Tree;
 using mRemoteNG.Tree.Root;
 
@@ -18,34 +19,34 @@ namespace mRemoteNG.Config.Serializers.ConnectionSerializers.Csv
     {
         public ConnectionTreeModel Deserialize(string serializedData)
         {
-            var lines = serializedData.Split(new[] {"\r\n", "\r", "\n"}, StringSplitOptions.RemoveEmptyEntries);
-            var csvHeaders = new List<string>();
+            string[] lines = serializedData.Split(new[] {"\r\n", "\r", "\n"}, StringSplitOptions.RemoveEmptyEntries);
+            List<string> csvHeaders = new();
             // used to map a connectioninfo to it's parent's GUID
-            var parentMapping = new Dictionary<ConnectionInfo, string>();
+            Dictionary<ConnectionInfo, string> parentMapping = new();
 
-            for (var lineNumber = 0; lineNumber < lines.Length; lineNumber++)
+            for (int lineNumber = 0; lineNumber < lines.Length; lineNumber++)
             {
-                var line = lines[lineNumber].Split(';');
+                string[] line = lines[lineNumber].Split(';');
                 if (lineNumber == 0)
                     csvHeaders = line.ToList();
                 else
                 {
-                    var connectionInfo = ParseConnectionInfo(csvHeaders, line);
+                    ConnectionInfo connectionInfo = ParseConnectionInfo(csvHeaders, line);
                     parentMapping.Add(connectionInfo, line[csvHeaders.IndexOf("Parent")]);
                 }
             }
 
-            var root = CreateTreeStructure(parentMapping);
-            var connectionTreeModel = new ConnectionTreeModel();
+            RootNodeInfo root = CreateTreeStructure(parentMapping);
+            ConnectionTreeModel connectionTreeModel = new();
             connectionTreeModel.AddRootNode(root);
             return connectionTreeModel;
         }
 
         private RootNodeInfo CreateTreeStructure(Dictionary<ConnectionInfo, string> parentMapping)
         {
-            var root = new RootNodeInfo(RootNodeType.Connection);
+            RootNodeInfo root = new(RootNodeType.Connection);
 
-            foreach (var node in parentMapping)
+            foreach (KeyValuePair<ConnectionInfo, string> node in parentMapping)
             {
                 // no parent mapped, add to root
                 if (string.IsNullOrEmpty(node.Value))
@@ -55,7 +56,7 @@ namespace mRemoteNG.Config.Serializers.ConnectionSerializers.Csv
                 }
 
                 // search for parent in the list by GUID
-                var parent = parentMapping
+                ContainerInfo parent = parentMapping
                              .Keys
                              .OfType<ContainerInfo>()
                              .FirstOrDefault(info => info.ConstantID == node.Value);
@@ -75,15 +76,15 @@ namespace mRemoteNG.Config.Serializers.ConnectionSerializers.Csv
 
         private ConnectionInfo ParseConnectionInfo(IList<string> headers, string[] connectionCsv)
         {
-            var nodeType = headers.Contains("NodeType")
+            TreeNodeType nodeType = headers.Contains("NodeType")
                 ? (TreeNodeType)Enum.Parse(typeof(TreeNodeType), connectionCsv[headers.IndexOf("NodeType")], true)
                 : TreeNodeType.Connection;
 
-            var nodeId = headers.Contains("Id")
+            string nodeId = headers.Contains("Id")
                 ? connectionCsv[headers.IndexOf("Id")]
                 : Guid.NewGuid().ToString();
 
-            var connectionRecord = nodeType == TreeNodeType.Connection
+            ConnectionInfo connectionRecord = nodeType == TreeNodeType.Connection
                 ? new ConnectionInfo(nodeId)
                 : new ContainerInfo(nodeId);
 
@@ -112,8 +113,8 @@ namespace mRemoteNG.Config.Serializers.ConnectionSerializers.Csv
                 : "";
 
             connectionRecord.Password = headers.Contains("Password")
-                ? connectionCsv[headers.IndexOf("Password")]
-                : "";
+                ? connectionCsv[headers.IndexOf("Password")].ConvertToSecureString()
+                : "".ConvertToSecureString();
 
             connectionRecord.Domain = headers.Contains("Domain")
                 ? connectionCsv[headers.IndexOf("Domain")]

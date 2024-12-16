@@ -7,7 +7,7 @@
     <OutputType>Library</OutputType>
     <UseWindowsForms>True</UseWindowsForms>
     <Platforms>x64</Platforms>
-    <Configurations>Debug;Release;Debug Portable;Release Portable</Configurations>
+    <Configurations>Debug;Release;Debug Portable;Release Portable;Deploy to github</Configurations>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release Portable|x64'">
@@ -15,19 +15,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AWSSDK.Core" Version="3.7.300.17" />
-    <PackageReference Include="AWSSDK.EC2" Version="3.7.309.1" />
-    <PackageReference Include="BouncyCastle.Cryptography" Version="2.2.1" />
+    <PackageReference Include="AWSSDK.Core" Version="3.7.400.57" />
+    <PackageReference Include="AWSSDK.EC2" Version="3.7.420.1" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.4.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="AWS\AWSConnectionForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Update="DSS\SSConnectionForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
+    <Compile Update="AWS\AWSConnectionForm.cs" />
+    <Compile Update="CPS\CPSConnectionForm.cs" />
+    <Compile Update="DSS\SSConnectionForm.cs" />
   </ItemGroup>
 
 </Project>

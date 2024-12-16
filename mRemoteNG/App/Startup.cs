@@ -1,5 +1,4 @@
 ﻿using System;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.Versioning;
@@ -8,6 +7,7 @@ using mRemoteNG.App.Info;
 using mRemoteNG.App.Initialization;
 using mRemoteNG.App.Update;
 using mRemoteNG.Config.Connections.Multiuser;
+using mRemoteNG.Config.Settings.Registry;
 using mRemoteNG.Connection;
 using mRemoteNG.Messages;
 using mRemoteNG.Properties;
@@ -22,6 +22,7 @@ namespace mRemoteNG.App
     [SupportedOSPlatform("windows")]
     public class Startup
     {
+        private RegistryLoader _RegistryLoader;
         private AppUpdater _appUpdate;
         private readonly ConnectionIconLoader _connectionIconLoader;
         private readonly FrmMain _frmMain = FrmMain.Default;
@@ -30,18 +31,15 @@ namespace mRemoteNG.App
 
         private Startup()
         {
-            _appUpdate = new AppUpdater();
+            _RegistryLoader = RegistryLoader.Instance; //created instance
+            _appUpdate = new AppUpdater(); 
             _connectionIconLoader = new ConnectionIconLoader(GeneralAppInfo.HomePath + "\\Icons\\");
-        }
-
-        static Startup()
-        {
         }
 
         public void InitializeProgram(MessageCollector messageCollector)
         {
             Debug.Print("---------------------------" + Environment.NewLine + "[START] - " + Convert.ToString(DateTime.Now, CultureInfo.InvariantCulture));
-            var startupLogger = new StartupDataLogger(messageCollector);
+            StartupDataLogger startupLogger = new(messageCollector);
             startupLogger.LogStartupData();
             CompatibilityChecker.CheckCompatibility(messageCollector);
             ParseCommandLineArgs(messageCollector);
@@ -53,7 +51,7 @@ namespace mRemoteNG.App
 
         private static void ParseCommandLineArgs(MessageCollector messageCollector)
         {
-            var interpreter = new StartupArgumentsInterpreter(messageCollector);
+            StartupArgumentsInterpreter interpreter = new(messageCollector);
             interpreter.ParseArguments(Environment.GetCommandLineArgs());
         }
 
@@ -77,8 +75,7 @@ namespace mRemoteNG.App
                 return;
             }
 
-            var nextUpdateCheck =
-                Convert.ToDateTime(Properties.OptionsUpdatesPage.Default.CheckForUpdatesLastCheck.Add(TimeSpan.FromDays(Convert.ToDouble(Properties.OptionsUpdatesPage.Default.CheckForUpdatesFrequencyDays))));
+            DateTime nextUpdateCheck = Convert.ToDateTime(Properties.OptionsUpdatesPage.Default.CheckForUpdatesLastCheck.Add(TimeSpan.FromDays(Convert.ToDouble(Properties.OptionsUpdatesPage.Default.CheckForUpdatesFrequencyDays))));
             if (!Properties.OptionsUpdatesPage.Default.UpdatePending && DateTime.UtcNow < nextUpdateCheck)
             {
                 return;

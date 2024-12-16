@@ -34,7 +34,7 @@ namespace mRemoteNG.Config.Serializers.ConnectionSerializers.Xml
 
         public XElement Serialize(ConnectionInfo connectionInfo)
         {
-            var element = new XElement(XName.Get("Node", ""));
+            XElement element = new(XName.Get("Node", ""));
             SetElementAttributes(element, connectionInfo);
             SetInheritanceAttributes(element, connectionInfo);
             return element;
@@ -42,7 +42,7 @@ namespace mRemoteNG.Config.Serializers.ConnectionSerializers.Xml
 
         private void SetElementAttributes(XContainer element, ConnectionInfo connectionInfo)
         {
-            var nodeAsContainer = connectionInfo as ContainerInfo;
+            ContainerInfo nodeAsContainer = connectionInfo as ContainerInfo;
             element.Add(new XAttribute("Name", connectionInfo.Name));
             element.Add(new XAttribute("Type", connectionInfo.GetTreeNodeType().ToString()));
             if (nodeAsContainer != null)
@@ -61,7 +61,7 @@ namespace mRemoteNG.Config.Serializers.ConnectionSerializers.Xml
                 : new XAttribute("Domain", ""));
 
             if (_saveFilter.SavePassword && !connectionInfo.Inheritance.Password)
-                element.Add(new XAttribute("Password", _cryptographyProvider.Encrypt(connectionInfo.Password, _encryptionKey)));
+                element.Add(new XAttribute("Password", _cryptographyProvider.Encrypt(connectionInfo.Password.ConvertToUnsecureString(), _encryptionKey)));
             else
                 element.Add(new XAttribute("Password", ""));
 
@@ -141,7 +141,7 @@ namespace mRemoteNG.Config.Serializers.ConnectionSerializers.Xml
         {
             if (_saveFilter.SaveInheritance)
             {
-                var inheritance = connectionInfo.Inheritance;
+                ConnectionInfoInheritance inheritance = connectionInfo.Inheritance;
 
                 if (inheritance.CacheBitmaps)
                     element.Add(new XAttribute("InheritCacheBitmaps", inheritance.CacheBitmaps.ToString().ToLowerInvariant()));

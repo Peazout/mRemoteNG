@@ -1,4 +1,5 @@
-﻿using System.ComponentModel;
+﻿using System;
+using System.ComponentModel;
 using System.Drawing;
 using System.Runtime.Versioning;
 using System.Windows.Forms;
@@ -43,6 +44,14 @@ namespace mRemoteNG.UI.Forms.OptionsPages
         {
         }
 
+        /// <summary>
+        /// Checks if registry settings were applied and disables the corresponding UI controls.
+        /// If any settings are applied, it also displays an information label.
+        /// </summary>
+        public virtual void LoadRegistrySettings()
+        {
+        }
+
         #endregion
 
         protected virtual void ApplyTheme()
@@ -65,8 +74,27 @@ namespace mRemoteNG.UI.Forms.OptionsPages
             Name = "OptionsPage";
             ResumeLayout(false);
         }
+
+        /// <summary>
+        /// Disables the specified control by setting its Enabled property to false.
+        /// For TextBox controls, additionally sets the ReadOnly property based on the Enabled state.
+        /// Does nothing if the control is null.
+        /// </summary>
+        /// <param name="control">The control to be disabled.</param>
+        protected static void DisableControl(Control control)
+        {
+            if (control == null) return;
+
+            control.Enabled = false;
+
+            if (control is TextBox)
+            {
+                // If it's a TextBox, set the ReadOnly property
+                ((TextBox)control).ReadOnly = control.Enabled;
+            }
+        }
     }
-	internal class DropdownList
+    internal class DropdownList
     {
         public int Index { get; set; }
         public string DisplayString { get; set; }

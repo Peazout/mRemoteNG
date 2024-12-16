@@ -4,6 +4,7 @@ using System.Data;
 using System.Linq;
 using System.Runtime.Versioning;
 using System.Security;
+using System.Windows.Media.TextFormatting;
 using mRemoteNG.App;
 using mRemoteNG.Connection;
 using mRemoteNG.Connection.Protocol;
@@ -33,15 +34,15 @@ namespace mRemoteNG.Config.Serializers.ConnectionSerializers.Sql
 
         public ConnectionTreeModel Deserialize(DataTable table)
         {
-            var connectionList = CreateNodesFromTable(table);
-            var connectionTreeModel = CreateNodeHierarchy(connectionList, table);
+            List<ConnectionInfo> connectionList = CreateNodesFromTable(table);
+            ConnectionTreeModel connectionTreeModel = CreateNodeHierarchy(connectionList, table);
             Runtime.ConnectionsService.IsConnectionsFileLoaded = true;
             return connectionTreeModel;
         }
 
         private List<ConnectionInfo> CreateNodesFromTable(DataTable table)
         {
-            var nodeList = new List<ConnectionInfo>();
+            List<ConnectionInfo> nodeList = new();
             foreach (DataRow row in table.Rows)
             {
                 // ReSharper disable once SwitchStatementMissingSomeCases
@@ -61,16 +62,16 @@ namespace mRemoteNG.Config.Serializers.ConnectionSerializers.Sql
         
         private ConnectionInfo DeserializeConnectionInfo(DataRow row)
         {
-            var connectionId = row["ConstantID"] as string ?? Guid.NewGuid().ToString();
-            var connectionInfo = new ConnectionInfo(connectionId);
+            string connectionId = row["ConstantID"] as string ?? Guid.NewGuid().ToString();
+            ConnectionInfo connectionInfo = new(connectionId);
             PopulateConnectionInfoFromDatarow(row, connectionInfo);
             return connectionInfo;
         }
 
         private ContainerInfo DeserializeContainerInfo(DataRow row)
         {
-            var containerId = row["ConstantID"] as string ?? Guid.NewGuid().ToString();
-            var containerInfo = new ContainerInfo(containerId);
+            string containerId = row["ConstantID"] as string ?? Guid.NewGuid().ToString();
+            ContainerInfo containerInfo = new(containerId);
             PopulateConnectionInfoFromDatarow(row, containerInfo);
             return containerInfo;
         }
@@ -111,7 +112,8 @@ namespace mRemoteNG.Config.Serializers.ConnectionSerializers.Sql
             connectionInfo.OpeningCommand = (string)dataRow["OpeningCommand"];
             connectionInfo.OpeningCommand = (string)dataRow["OpeningCommand"];
             connectionInfo.Panel = (string)dataRow["Panel"];
-            connectionInfo.Password = DecryptValue((string)dataRow["Password"]);
+            var pw = dataRow["Password"] as string;
+            connectionInfo.Password = DecryptValue(pw ?? "").ConvertToSecureString();
             connectionInfo.Port = (int)dataRow["Port"];
             connectionInfo.PostExtApp = (string)dataRow["PostExtApp"];
             connectionInfo.PreExtApp = (string)dataRow["PreExtApp"];
@@ -258,8 +260,8 @@ namespace mRemoteNG.Config.Serializers.ConnectionSerializers.Sql
 
         private ConnectionTreeModel CreateNodeHierarchy(List<ConnectionInfo> connectionList, DataTable dataTable)
         {
-            var connectionTreeModel = new ConnectionTreeModel();
-            var rootNode = new RootNodeInfo(RootNodeType.Connection, "0")
+            ConnectionTreeModel connectionTreeModel = new();
+            RootNodeInfo rootNode = new(RootNodeType.Connection, "0")
             {
                 PasswordString = _decryptionKey.ConvertToUnsecureString()
             };
@@ -267,9 +269,9 @@ namespace mRemoteNG.Config.Serializers.ConnectionSerializers.Sql
 
             foreach (DataRow row in dataTable.Rows)
             {
-                var id = (string)row["ConstantID"];
-                var connectionInfo = connectionList.First(node => node.ConstantID == id);
-                var parentId = (string)row["ParentID"];
+                string id = (string)row["ConstantID"];
+                ConnectionInfo connectionInfo = connectionList.First(node => node.ConstantID == id);
+                string parentId = (string)row["ParentID"];
                 if (parentId == "0" || connectionList.All(node => node.ConstantID != parentId))
                     rootNode.AddChild(connectionInfo);
                 else

@@ -12,6 +12,7 @@ using mRemoteNG.Tree;
 using mRemoteNG.Tree.Root;
 using mRemoteNG.Resources.Language;
 using System.Runtime.Versioning;
+using mRemoteNG.Security;
 
 // ReSharper disable UnusedParameter.Local
 
@@ -575,7 +576,7 @@ namespace mRemoteNG.UI.Controls
             _cMenTreeConnectWithOptionsConnectInFullscreen.Enabled = false;
             _cMenTreeConnectWithOptionsConnectToConsoleSession.Enabled = false;
 
-            var hasOpenConnections = containerInfo.Children.Any(child => child.OpenConnections.Count > 0);
+            bool hasOpenConnections = containerInfo.Children.Any(child => child.OpenConnections.Count > 0);
             _cMenTreeDisconnect.Enabled = hasOpenConnections;
 
             _cMenTreeToolsTransferFile.Enabled = false;
@@ -655,7 +656,7 @@ namespace mRemoteNG.UI.Controls
         {
             foreach (ToolStripItem item in items)
             {
-                var menuItem = item as ToolStripMenuItem;
+                ToolStripMenuItem menuItem = item as ToolStripMenuItem;
                 if (menuItem == null)
                 {
                     continue;
@@ -677,7 +678,7 @@ namespace mRemoteNG.UI.Controls
 
                 foreach (ExternalTool extA in Runtime.ExternalToolsService.ExternalTools)
                 {
-                    var menuItem = new ToolStripMenuItem
+                    ToolStripMenuItem menuItem = new()
                     {
                         Text = extA.DisplayName,
                         Tag = extA,
@@ -699,7 +700,7 @@ namespace mRemoteNG.UI.Controls
         private void ResetExternalAppMenu()
         {
             if (_cMenTreeToolsExternalApps.DropDownItems.Count <= 0) return;
-            for (var i = _cMenTreeToolsExternalApps.DropDownItems.Count - 1; i >= 0; i--)
+            for (int i = _cMenTreeToolsExternalApps.DropDownItems.Count - 1; i >= 0; i--)
                 _cMenTreeToolsExternalApps.DropDownItems[i].Dispose();
 
             _cMenTreeToolsExternalApps.DropDownItems.Clear();
@@ -709,7 +710,7 @@ namespace mRemoteNG.UI.Controls
 
         private void OnConnectClicked(object sender, EventArgs e)
         {
-            var selectedNodeAsContainer = _connectionTree.SelectedNode as ContainerInfo;
+            ContainerInfo selectedNodeAsContainer = _connectionTree.SelectedNode as ContainerInfo;
             if (selectedNodeAsContainer != null)
                 Runtime.ConnectionInitiator.OpenConnection(selectedNodeAsContainer, ConnectionInfo.Force.DoNotJump);
             else
@@ -718,7 +719,7 @@ namespace mRemoteNG.UI.Controls
 
         private void OnConnectToConsoleSessionClicked(object sender, EventArgs e)
         {
-            var selectedNodeAsContainer = _connectionTree.SelectedNode as ContainerInfo;
+            ContainerInfo selectedNodeAsContainer = _connectionTree.SelectedNode as ContainerInfo;
             if (selectedNodeAsContainer != null)
                 Runtime.ConnectionInitiator.OpenConnection(selectedNodeAsContainer,
                                                            ConnectionInfo.Force.UseConsoleSession |
@@ -732,7 +733,7 @@ namespace mRemoteNG.UI.Controls
 
         private void OnDontConnectToConsoleSessionClicked(object sender, EventArgs e)
         {
-            var selectedNodeAsContainer = _connectionTree.SelectedNode as ContainerInfo;
+            ContainerInfo selectedNodeAsContainer = _connectionTree.SelectedNode as ContainerInfo;
             if (selectedNodeAsContainer != null)
                 Runtime.ConnectionInitiator.OpenConnection(selectedNodeAsContainer,
                                                            ConnectionInfo.Force.DontUseConsoleSession |
@@ -745,7 +746,7 @@ namespace mRemoteNG.UI.Controls
 
         private void OnConnectInFullscreenClicked(object sender, EventArgs e)
         {
-            var selectedNodeAsContainer = _connectionTree.SelectedNode as ContainerInfo;
+            ContainerInfo selectedNodeAsContainer = _connectionTree.SelectedNode as ContainerInfo;
             if (selectedNodeAsContainer != null)
                 Runtime.ConnectionInitiator.OpenConnection(selectedNodeAsContainer,
                                                            ConnectionInfo.Force.Fullscreen | ConnectionInfo.Force.DoNotJump);
@@ -756,7 +757,7 @@ namespace mRemoteNG.UI.Controls
 
         private void OnConnectWithNoCredentialsClick(object sender, EventArgs e)
         {
-            var selectedNodeAsContainer = _connectionTree.SelectedNode as ContainerInfo;
+            ContainerInfo selectedNodeAsContainer = _connectionTree.SelectedNode as ContainerInfo;
             if (selectedNodeAsContainer != null)
                 Runtime.ConnectionInitiator.OpenConnection(selectedNodeAsContainer, ConnectionInfo.Force.NoCredentials);
             else
@@ -765,7 +766,7 @@ namespace mRemoteNG.UI.Controls
 
         private void OnChoosePanelBeforeConnectingClicked(object sender, EventArgs e)
         {
-            var selectedNodeAsContainer = _connectionTree.SelectedNode as ContainerInfo;
+            ContainerInfo selectedNodeAsContainer = _connectionTree.SelectedNode as ContainerInfo;
             if (selectedNodeAsContainer != null)
                 Runtime.ConnectionInitiator.OpenConnection(selectedNodeAsContainer,
                                                            ConnectionInfo.Force.OverridePanel |
@@ -778,7 +779,7 @@ namespace mRemoteNG.UI.Controls
 
         private void ConnectWithOptionsViewOnlyOnClick(object sender, EventArgs e)
         {
-            var connectionTarget = _connectionTree.SelectedNode as ContainerInfo
+            ConnectionInfo connectionTarget = _connectionTree.SelectedNode as ContainerInfo
                                    ?? _connectionTree.SelectedNode;
             Runtime.ConnectionInitiator.OpenConnection(connectionTarget, ConnectionInfo.Force.ViewOnly);
         }
@@ -793,12 +794,12 @@ namespace mRemoteNG.UI.Controls
             try
             {
                 if (connectionInfo == null) return;
-                var nodeAsContainer = connectionInfo as ContainerInfo;
+                ContainerInfo nodeAsContainer = connectionInfo as ContainerInfo;
                 if (nodeAsContainer != null)
                 {
-                    foreach (var child in nodeAsContainer.Children)
+                    foreach (ConnectionInfo child in nodeAsContainer.Children)
                     {
-                        for (var i = 0; i <= child.OpenConnections.Count - 1; i++)
+                        for (int i = 0; i <= child.OpenConnections.Count - 1; i++)
                         {
                             child.OpenConnections[i].Disconnect();
                         }
@@ -806,7 +807,7 @@ namespace mRemoteNG.UI.Controls
                 }
                 else
                 {
-                    for (var i = 0; i <= connectionInfo.OpenConnections.Count - 1; i++)
+                    for (int i = 0; i <= connectionInfo.OpenConnections.Count - 1; i++)
                     {
                         connectionInfo.OpenConnections[i].Disconnect();
                     }
@@ -832,7 +833,7 @@ namespace mRemoteNG.UI.Controls
                 Windows.Show(WindowType.SSHTransfer);
                 Windows.SshtransferForm.Hostname = _connectionTree.SelectedNode.Hostname;
                 Windows.SshtransferForm.Username = _connectionTree.SelectedNode.Username;
-                Windows.SshtransferForm.Password = _connectionTree.SelectedNode.Password;
+                Windows.SshtransferForm.Password = _connectionTree.SelectedNode.Password.ConvertToUnsecureString();
                 Windows.SshtransferForm.Port = Convert.ToString(_connectionTree.SelectedNode.Port);
             }
             catch (Exception ex)

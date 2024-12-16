@@ -18,6 +18,9 @@ using MSTSCLib;
 using mRemoteNG.Resources.Language;
 using System.Runtime.Versioning;
 using FileDialog = Microsoft.Win32.FileDialog;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
+using System.DirectoryServices.ActiveDirectory;
+using mRemoteNG.Security;
 
 namespace mRemoteNG.Connection.Protocol.RDP
 {
@@ -292,7 +295,7 @@ namespace mRemoteNG.Connection.Protocol.RDP
         {
             try
             {
-                using var control = CreateActiveXRdpClientControl();
+                using AxHost control = CreateActiveXRdpClientControl();
                 control.CreateControl();
                 return true;
             }
@@ -308,12 +311,12 @@ namespace mRemoteNG.Connection.Protocol.RDP
         protected static class Versions
         {
             // https://en.wikipedia.org/wiki/Remote_Desktop_Protocol
-            public static readonly Version RDC60 = new Version(6, 0, 6000);
-            public static readonly Version RDC61 = new Version(6, 0, 6001);
-            public static readonly Version RDC70 = new Version(6, 1, 7600);
-            public static readonly Version RDC80 = new Version(6, 2, 9200);
-            public static readonly Version RDC81 = new Version(6, 3, 9600);
-            public static readonly Version RDC100 = new Version(10, 0, 0);
+            public static readonly Version RDC60 = new(6, 0, 6000);
+            public static readonly Version RDC61 = new(6, 0, 6001);
+            public static readonly Version RDC70 = new(6, 1, 7600);
+            public static readonly Version RDC80 = new(6, 2, 9200);
+            public static readonly Version RDC81 = new(6, 3, 9600);
+            public static readonly Version RDC100 = new(10, 0, 0);
         }
 
         private void SetRdpClientProperties()
@@ -423,7 +426,7 @@ namespace mRemoteNG.Connection.Protocol.RDP
                 {
                     case RDGatewayUseConnectionCredentials.Yes:
                         _rdpClient.TransportSettings2.GatewayUsername = connectionInfo.Username;
-                        _rdpClient.TransportSettings2.GatewayPassword = connectionInfo.Password;
+                        _rdpClient.TransportSettings2.GatewayPassword = connectionInfo.Password.ConvertToUnsecureString();
                         _rdpClient.TransportSettings2.GatewayDomain = connectionInfo?.Domain;
                         break;
                     case RDGatewayUseConnectionCredentials.SmartCard:
@@ -433,10 +436,10 @@ namespace mRemoteNG.Connection.Protocol.RDP
                     {
                         _rdpClient.TransportSettings2.GatewayCredSharing = 0;
 
-                        var gwu = connectionInfo.RDGatewayUsername;
-                        var gwp = connectionInfo.RDGatewayPassword;
-                        var gwd = connectionInfo.RDGatewayDomain;
-                        var pkey = "";
+                            string gwu = connectionInfo.RDGatewayUsername;
+                            string gwp = connectionInfo.RDGatewayPassword;
+                            string gwd = connectionInfo.RDGatewayDomain;
+                            string pkey = "";
 
                         // access secret server api if necessary
                         if (InterfaceControl.Info.RDGatewayExternalCredentialProvider == ExternalCredentialProvider.DelineaSecretServer)
@@ -450,8 +453,20 @@ namespace mRemoteNG.Connection.Protocol.RDP
                             {
                                 Event_ErrorOccured(this, "Secret Server Interface Error: " + ex.Message, 0);
                             }
-
                         }
+                        else if (InterfaceControl.Info.ExternalCredentialProvider == ExternalCredentialProvider.ClickstudiosPasswordState)
+                        {
+                            try
+                            {
+                                string RDGUserViaAPI = InterfaceControl.Info.RDGatewayUserViaAPI;
+                                ExternalConnectors.CPS.PasswordstateInterface.FetchSecretFromServer($"{RDGUserViaAPI}", out gwu, out gwp, out gwd, out pkey);
+                            }
+                            catch (Exception ex)
+                            {
+                                Event_ErrorOccured(this, "Passwordstate Interface Error: " + ex.Message, 0);
+                            }
+                        }
+
 
                         if (connectionInfo.RDGatewayUseConnectionCredentials != RDGatewayUseConnectionCredentials.AccessToken)
                         {
@@ -521,11 +536,11 @@ namespace mRemoteNG.Connection.Protocol.RDP
                     return;
                 }
 
-                var userName = connectionInfo?.Username ?? "";
-                var password = connectionInfo?.Password ?? "";
-                var domain = connectionInfo?.Domain ?? "";
-                var userViaApi = connectionInfo?.UserViaAPI ?? "";
-                var pkey = "";
+                string userName = connectionInfo?.Username ?? "";
+                string domain = connectionInfo?.Domain ?? "";
+                string userViaApi = connectionInfo?.UserViaAPI ?? "";
+                string pkey = "";
+                string password = (connectionInfo?.Password?.ConvertToUnsecureString() ?? "");
 
                 // access secret server api if necessary
                 if (InterfaceControl.Info.ExternalCredentialProvider == ExternalCredentialProvider.DelineaSecretServer)
@@ -538,7 +553,17 @@ namespace mRemoteNG.Connection.Protocol.RDP
                     {
                         Event_ErrorOccured(this, "Secret Server Interface Error: " + ex.Message, 0);
                     }
-
+                }
+                else if (InterfaceControl.Info.ExternalCredentialProvider == ExternalCredentialProvider.ClickstudiosPasswordState)
+                {
+                    try
+                    {
+                        ExternalConnectors.CPS.PasswordstateInterface.FetchSecretFromServer($"{userViaApi}", out userName, out password, out domain, out pkey);
+                    }
+                    catch (Exception ex)
+                    {
+                        Event_ErrorOccured(this, "Passwordstate Interface Error: " + ex.Message, 0);
+                    }
                 }
 
                 if (string.IsNullOrEmpty(userName))
@@ -576,7 +601,7 @@ namespace mRemoteNG.Connection.Protocol.RDP
                     {
                         if (Properties.OptionsCredentialsPage.Default.DefaultPassword != "")
                         {
-                            var cryptographyProvider = new LegacyRijndaelCryptographyProvider();
+                            LegacyRijndaelCryptographyProvider cryptographyProvider = new();
                             _rdpClient.AdvancedSettings2.ClearTextPassword = cryptographyProvider.Decrypt(Properties.OptionsCredentialsPage.Default.DefaultPassword, Runtime.EncryptionKey);
                         }
                     }
@@ -644,7 +669,7 @@ namespace mRemoteNG.Connection.Protocol.RDP
                         break;
                     default:
                         {
-                            var resolution = connectionInfo.Resolution.GetResolutionRectangle();
+                            System.Drawing.Rectangle resolution = connectionInfo.Resolution.GetResolutionRectangle();
                             _rdpClient.DesktopWidth = resolution.Width;
                             _rdpClient.DesktopHeight = resolution.Height;
                             break;
@@ -697,7 +722,7 @@ namespace mRemoteNG.Connection.Protocol.RDP
                 _rdpClient.AdvancedSettings2.RedirectDrives = true;
             else if (RDPDiskDrives.Custom == connectionInfo.RedirectDiskDrives)
             {
-                var rdpNS5 = (IMsRdpClientNonScriptable5)((AxHost)Control).GetOcx();
+                IMsRdpClientNonScriptable5 rdpNS5 = (IMsRdpClientNonScriptable5)((AxHost)Control).GetOcx();
                 for (uint i = 0; i < rdpNS5.DriveCollection.DriveCount; i++)
                 {
                     IMsRdpDrive drive = rdpNS5.DriveCollection.DriveByIndex[i];
@@ -707,7 +732,7 @@ namespace mRemoteNG.Connection.Protocol.RDP
             else
             {
                 // Local Drives
-                var rdpNS5 = (IMsRdpClientNonScriptable5)((AxHost)Control).GetOcx();
+                IMsRdpClientNonScriptable5 rdpNS5 = (IMsRdpClientNonScriptable5)((AxHost)Control).GetOcx();
                 for (uint i = 0; i < rdpNS5.DriveCollection.DriveCount; i++)
                 {
                     IMsRdpDrive drive = rdpNS5.DriveCollection.DriveByIndex[i];
@@ -733,7 +758,7 @@ namespace mRemoteNG.Connection.Protocol.RDP
         {
             try
             {
-                var pFlags = 0;
+                int pFlags = 0;
                 if (connectionInfo.DisplayThemes == false)
                     pFlags += (int)RDPPerformanceFlags.DisableThemes;
 
@@ -829,7 +854,7 @@ namespace mRemoteNG.Connection.Protocol.RDP
 
         private void RDPEvent_OnFatalError(int errorCode)
         {
-            var errorMsg = RdpErrorCodes.GetError(errorCode);
+            string errorMsg = RdpErrorCodes.GetError(errorCode);
             Event_ErrorOccured(this, errorMsg, errorCode);
         }
 
@@ -838,7 +863,7 @@ namespace mRemoteNG.Connection.Protocol.RDP
             const int UI_ERR_NORMAL_DISCONNECT = 0xB08;
             if (discReason != UI_ERR_NORMAL_DISCONNECT)
             {
-                var reason = _rdpClient.GetErrorDescription((uint)discReason, (uint)_rdpClient.ExtendedDisconnectReason);
+                string reason = _rdpClient.GetErrorDescription((uint)discReason, (uint)_rdpClient.ExtendedDisconnectReason);
                 Event_Disconnected(this, reason, discReason);
             }
 
@@ -917,7 +942,7 @@ namespace mRemoteNG.Connection.Protocol.RDP
         {
             try
             {
-                var srvReady = PortScanner.IsPortOpen(connectionInfo.Hostname, Convert.ToString(connectionInfo.Port));
+                bool srvReady = PortScanner.IsPortOpen(connectionInfo.Hostname, Convert.ToString(connectionInfo.Port));
 
                 ReconnectGroup.ServerReady = srvReady;
 

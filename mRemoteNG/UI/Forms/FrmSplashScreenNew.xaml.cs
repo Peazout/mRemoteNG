@@ -15,14 +15,16 @@ namespace mRemoteNG.UI.Forms
         {
             InitializeComponent();
             LoadFont();
-            lblLogoPartD.Content = $@"v. {GeneralAppInfo.ApplicationVersion}";
+            lblLogoPartD.HorizontalContentAlignment = System.Windows.HorizontalAlignment.Center;
+            lblLogoPartD.Content = $@"v. {GeneralAppInfo.ApplicationVersion} - 'Libro Ultimo'";
         }
         public static FrmSplashScreenNew GetInstance()
         {
-            if (instance == null)
-                instance = new FrmSplashScreenNew();
+            //instance == null
+            instance ??= new FrmSplashScreenNew();
             return instance;
         }
+
         void LoadFont()
         {
             lblLogoPartA.FontFamily = new System.Windows.Media.FontFamily(new Uri("pack://application:,,,/"), "./UI/Font/#HandelGotDBol");

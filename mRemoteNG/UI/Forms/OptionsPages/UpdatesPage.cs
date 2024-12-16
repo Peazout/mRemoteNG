@@ -1,5 +1,4 @@
 ﻿using System;
-using System.ComponentModel;
 using System.Windows.Forms;
 using mRemoteNG.App;
 using mRemoteNG.App.Info;
@@ -10,6 +9,7 @@ using mRemoteNG.Tools;
 using mRemoteNG.UI.TaskDialog;
 using mRemoteNG.Resources.Language;
 using System.Runtime.Versioning;
+using mRemoteNG.Config.Settings.Registry;
 
 namespace mRemoteNG.UI.Forms.OptionsPages
 {
@@ -19,6 +19,7 @@ namespace mRemoteNG.UI.Forms.OptionsPages
         #region Private Fields
 
         private AppUpdater _appUpdate;
+        private OptRegistryUpdatesPage pageRegSettingsInstance;
 
         #endregion
 
@@ -58,58 +59,20 @@ namespace mRemoteNG.UI.Forms.OptionsPages
             lblProxyPassword.Text = Language.Password;
 
             btnTestProxy.Text = Language.TestProxy;
+
+            lblRegistrySettingsUsedInfo.Text = Language.OptionsCompanyPolicyMessage;
         }
 
         public override void LoadSettings()
         {
-            chkCheckForUpdatesOnStartup.Checked = Properties.OptionsUpdatesPage.Default.CheckForUpdatesOnStartup;
-            cboUpdateCheckFrequency.Enabled = chkCheckForUpdatesOnStartup.Checked;
-            cboUpdateCheckFrequency.Items.Clear();
-            var nDaily = cboUpdateCheckFrequency.Items.Add(Language.Daily);
-            var nWeekly = cboUpdateCheckFrequency.Items.Add(Language.Weekly);
-            var nMonthly = cboUpdateCheckFrequency.Items.Add(Language.Monthly);
-            if (Properties.OptionsUpdatesPage.Default.CheckForUpdatesFrequencyDays < 1)
-            {
-                chkCheckForUpdatesOnStartup.Checked = false;
-                cboUpdateCheckFrequency.SelectedIndex = nDaily;
-            } // Daily
-            else
-                switch (Properties.OptionsUpdatesPage.Default.CheckForUpdatesFrequencyDays)
-                {
-                    case 1:
-                        cboUpdateCheckFrequency.SelectedIndex = nDaily;
-                        break;
-                    case 7:
-                        cboUpdateCheckFrequency.SelectedIndex = nWeekly;
-                        break;
-                    case 31:
-                        cboUpdateCheckFrequency.SelectedIndex = nMonthly;
-                        break;
-                    default:
-                        var nCustom =
-                            cboUpdateCheckFrequency.Items.Add(string.Format(Language.UpdateFrequencyCustom, Properties.OptionsUpdatesPage.Default.CheckForUpdatesFrequencyDays));
-                        cboUpdateCheckFrequency.SelectedIndex = nCustom;
-                        break;
-                }
+            InitialiseCheckForUpdatesOnStartupComboBox();
+            InitialiseReleaseChannelComboBox();
 
-            var stable = cboReleaseChannel.Items.Add(UpdateChannelInfo.STABLE);
-            var beta = cboReleaseChannel.Items.Add(UpdateChannelInfo.PREVIEW);
-            var dev = cboReleaseChannel.Items.Add(UpdateChannelInfo.NIGHTLY);
-            switch (Properties.OptionsUpdatesPage.Default.UpdateChannel)
-            {
-                case UpdateChannelInfo.STABLE:
-                    cboReleaseChannel.SelectedIndex = stable;
-                    break;
-                case UpdateChannelInfo.PREVIEW:
-                    cboReleaseChannel.SelectedIndex = beta;
-                    break;
-                case UpdateChannelInfo.NIGHTLY:
-                    cboReleaseChannel.SelectedIndex = dev;
-                    break;
-                default:
-                    cboReleaseChannel.SelectedIndex = stable;
-                    break;
-            }
+            // Checks updates are generaly disallowed
+            if (UpdatesForbidden())
+                return; // not required to continue
+
+            chkCheckForUpdatesOnStartup.Checked = Properties.OptionsUpdatesPage.Default.CheckForUpdatesOnStartup;
 
             chkUseProxyForAutomaticUpdates.Checked = Properties.OptionsUpdatesPage.Default.UpdateUseProxy;
             tblProxyBasic.Enabled = Properties.OptionsUpdatesPage.Default.UpdateUseProxy;
@@ -119,7 +82,7 @@ namespace mRemoteNG.UI.Forms.OptionsPages
             chkUseProxyAuthentication.Checked = Properties.OptionsUpdatesPage.Default.UpdateProxyUseAuthentication;
             tblProxyAuthentication.Enabled = Properties.OptionsUpdatesPage.Default.UpdateProxyUseAuthentication;
             txtProxyUsername.Text = Properties.OptionsUpdatesPage.Default.UpdateProxyAuthUser;
-            var cryptographyProvider = new LegacyRijndaelCryptographyProvider();
+            LegacyRijndaelCryptographyProvider cryptographyProvider = new();
             txtProxyPassword.Text =
                 cryptographyProvider.Decrypt(Properties.OptionsUpdatesPage.Default.UpdateProxyAuthPass, Runtime.EncryptionKey);
 
@@ -130,16 +93,26 @@ namespace mRemoteNG.UI.Forms.OptionsPages
         {
             base.SaveSettings();
 
+            // Checks updates are generaly disallowed
+            if (UpdatesForbidden())
+                return; // not required to continue
+
             Properties.OptionsUpdatesPage.Default.CheckForUpdatesOnStartup = chkCheckForUpdatesOnStartup.Checked;
-            if (cboUpdateCheckFrequency.SelectedItem.ToString() == Language.Daily)
+
+            string UpdateCheckFrequency = cboUpdateCheckFrequency.SelectedItem?.ToString();
+            if (UpdateCheckFrequency == Language.Never)
+            {
+                Properties.OptionsUpdatesPage.Default.CheckForUpdatesOnStartup = false;
+            }
+            if (UpdateCheckFrequency == Language.Daily)
             {
                 Properties.OptionsUpdatesPage.Default.CheckForUpdatesFrequencyDays = 1;
             }
-            else if (cboUpdateCheckFrequency.SelectedItem.ToString() == Language.Weekly)
+            else if (UpdateCheckFrequency == Language.Weekly)
             {
                 Properties.OptionsUpdatesPage.Default.CheckForUpdatesFrequencyDays = 7;
             }
-            else if (cboUpdateCheckFrequency.SelectedItem.ToString() == Language.Monthly)
+            else if (UpdateCheckFrequency == Language.Monthly)
             {
                 Properties.OptionsUpdatesPage.Default.CheckForUpdatesFrequencyDays = 31;
             }
@@ -152,8 +125,82 @@ namespace mRemoteNG.UI.Forms.OptionsPages
 
             Properties.OptionsUpdatesPage.Default.UpdateProxyUseAuthentication = chkUseProxyAuthentication.Checked;
             Properties.OptionsUpdatesPage.Default.UpdateProxyAuthUser = txtProxyUsername.Text;
-            var cryptographyProvider = new LegacyRijndaelCryptographyProvider();
+            LegacyRijndaelCryptographyProvider cryptographyProvider = new();
             Properties.OptionsUpdatesPage.Default.UpdateProxyAuthPass = cryptographyProvider.Encrypt(txtProxyPassword.Text, Runtime.EncryptionKey);
+        }
+
+        public override void LoadRegistrySettings()
+        {
+            Type settingsType = typeof(OptRegistryUpdatesPage);
+            RegistryLoader.RegistrySettings.TryGetValue(settingsType, out var settings);
+            pageRegSettingsInstance = settings as OptRegistryUpdatesPage;
+
+            RegistryLoader.Cleanup(settingsType);
+
+            // Checks updates are generaly disallowed.
+            if (UpdatesForbidden())
+            {
+                DisableControl(chkCheckForUpdatesOnStartup);
+                DisableControl(cboUpdateCheckFrequency);
+                DisableControl(btnUpdateCheckNow);
+                DisableControl(cboReleaseChannel);
+                DisableControl(chkUseProxyForAutomaticUpdates);
+                DisableControl(tblProxyBasic);
+                DisableControl(txtProxyAddress);
+                DisableControl(numProxyPort);
+                DisableControl(chkUseProxyAuthentication);
+                DisableControl(tblProxyAuthentication);
+                DisableControl(txtProxyUsername);
+                DisableControl(txtProxyPassword);
+                DisableControl(btnTestProxy);
+
+                lblRegistrySettingsUsedInfo.Visible = true;
+                return; // not required to continue
+            }
+
+            // Disable the option "check for updates on startup" if auto updates is disallowed.
+            if (!CommonRegistrySettings.AllowCheckForUpdatesAutomatical)
+            {
+                DisableControl(chkCheckForUpdatesOnStartup);
+                DisableControl(cboUpdateCheckFrequency);
+            }
+
+            // Set Update Check button state based on manual update allow state.
+            btnUpdateCheckNow.Enabled = CommonRegistrySettings.AllowCheckForUpdatesManual;
+
+            // Disable "CheckForUpdatesFrequencyDays" based on auto update allow state.
+            if (pageRegSettingsInstance.CheckForUpdatesFrequencyDays.IsSet && CommonRegistrySettings.AllowCheckForUpdatesAutomatical)
+            {
+                DisableControl(chkCheckForUpdatesOnStartup);
+                DisableControl(cboUpdateCheckFrequency);
+            }
+
+            // ***
+            // Disable controls based on the registry settings.
+            //
+            if (pageRegSettingsInstance.UpdateChannel.IsSet)
+                DisableControl(cboReleaseChannel);
+
+            if (pageRegSettingsInstance.UseProxyForUpdates.IsSet)
+                DisableControl(chkUseProxyForAutomaticUpdates);
+
+            if (pageRegSettingsInstance.ProxyAddress.IsSet)
+                DisableControl(txtProxyAddress);
+
+            if (pageRegSettingsInstance.ProxyPort.IsSet)
+                DisableControl(numProxyPort);
+
+            if (pageRegSettingsInstance.UseProxyAuthentication.IsSet)
+                DisableControl(chkUseProxyAuthentication);
+
+            if (pageRegSettingsInstance.ProxyAuthUser.IsSet)
+                DisableControl(txtProxyUsername);
+
+            if (pageRegSettingsInstance.ProxyAuthPass.IsSet)
+                DisableControl(txtProxyPassword);
+
+            // Updates the visibility of the information label indicating whether registry settings are used.
+            lblRegistrySettingsUsedInfo.Visible = ShowRegistrySettingsUsedInfo();
         }
 
         #endregion
@@ -162,7 +209,10 @@ namespace mRemoteNG.UI.Forms.OptionsPages
 
         private void chkCheckForUpdatesOnStartup_CheckedChanged(object sender, EventArgs e)
         {
-            cboUpdateCheckFrequency.Enabled = chkCheckForUpdatesOnStartup.Checked;
+            if (pageRegSettingsInstance?.CheckForUpdatesFrequencyDays?.IsSet == false)
+                cboUpdateCheckFrequency.Enabled = chkCheckForUpdatesOnStartup.Checked;
+
+            InitialiseCheckForUpdatesOnStartupComboBox();
         }
 
         private void btnUpdateCheckNow_Click(object sender, EventArgs e)
@@ -172,23 +222,16 @@ namespace mRemoteNG.UI.Forms.OptionsPages
 
         private void chkUseProxyForAutomaticUpdates_CheckedChanged(object sender, EventArgs e)
         {
-            tblProxyBasic.Enabled = chkUseProxyForAutomaticUpdates.Checked;
-            btnTestProxy.Enabled = chkUseProxyForAutomaticUpdates.Checked;
+            // Enables/disables proxy settings controls
+            bool useProxy = chkUseProxyForAutomaticUpdates.Checked;
+            tblProxyBasic.Enabled = useProxy;
+            btnTestProxy.Enabled = useProxy;
 
-            if (chkUseProxyForAutomaticUpdates.Checked)
-            {
-                chkUseProxyAuthentication.Enabled = true;
-
-                if (chkUseProxyAuthentication.Checked)
-                {
-                    tblProxyAuthentication.Enabled = true;
-                }
-            }
-            else
-            {
-                chkUseProxyAuthentication.Enabled = false;
-                tblProxyAuthentication.Enabled = false;
-            }
+            // Enables/disables proxy authentication controls
+            bool useProxyAuth = chkUseProxyAuthentication.Checked;
+            bool useProxyAuthRegIsSet = pageRegSettingsInstance.UseProxyAuthentication?.IsSet ?? false;
+            chkUseProxyAuthentication.Enabled = useProxy && !useProxyAuthRegIsSet;
+            tblProxyAuthentication.Enabled = useProxy && useProxyAuth && !useProxyAuthRegIsSet;
         }
 
         private async void btnTestProxy_Click(object sender, EventArgs e)
@@ -233,9 +276,108 @@ namespace mRemoteNG.UI.Forms.OptionsPages
         private void chkUseProxyAuthentication_CheckedChanged(object sender, EventArgs e)
         {
             if (chkUseProxyForAutomaticUpdates.Checked)
-            {
                 tblProxyAuthentication.Enabled = chkUseProxyAuthentication.Checked;
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        /// <summary>
+        /// Initializes the update check frequency ComboBox.
+        /// </summary>
+        /// <remarks>
+        /// Clears existing items, adds default options (Daily, Weekly, Monthly), and sets the selected option
+        /// based on the saved frequency. If the saved frequency is less than 1, adds and selects "Never".
+        /// </remarks>
+        private void InitialiseCheckForUpdatesOnStartupComboBox()
+        {
+            cboUpdateCheckFrequency.Items.Clear();
+            int nDaily = cboUpdateCheckFrequency.Items.Add(Language.Daily);
+            int nWeekly = cboUpdateCheckFrequency.Items.Add(Language.Weekly);
+            int nMonthly = cboUpdateCheckFrequency.Items.Add(Language.Monthly);
+            if (Properties.OptionsUpdatesPage.Default.CheckForUpdatesFrequencyDays < 1)
+            {
+                chkCheckForUpdatesOnStartup.Checked = false;
+                Properties.OptionsUpdatesPage.Default.CheckForUpdatesOnStartup = false;
+
+                int nNever = cboUpdateCheckFrequency.Items.Add(Language.Never);
+                cboUpdateCheckFrequency.SelectedIndex = nNever;
             }
+            else if (!chkCheckForUpdatesOnStartup.Checked)
+            {
+                int nNever = cboUpdateCheckFrequency.Items.Add(Language.Never);
+                cboUpdateCheckFrequency.SelectedIndex = nNever;
+            }
+            else
+            {
+                switch (Properties.OptionsUpdatesPage.Default.CheckForUpdatesFrequencyDays)
+                {
+                    case 1:
+                        cboUpdateCheckFrequency.SelectedIndex = nDaily;
+                        break;
+                    case 7:
+                        cboUpdateCheckFrequency.SelectedIndex = nWeekly;
+                        break;
+                    case 31:
+                        cboUpdateCheckFrequency.SelectedIndex = nMonthly;
+                        break;
+                    default:
+                        int nCustom =
+                            cboUpdateCheckFrequency.Items.Add(string.Format(Language.UpdateFrequencyCustom, Properties.OptionsUpdatesPage.Default.CheckForUpdatesFrequencyDays));
+                        cboUpdateCheckFrequency.SelectedIndex = nCustom;
+                        break;
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Initializes the release channel ComboBox
+        /// </summary>
+        /// <remarks>
+        /// Set available options (STABLE, PREVIEW, NIGHTLY) and selects the appropriate channel based on saved settings
+        /// </remarks>
+        private void InitialiseReleaseChannelComboBox()
+        {
+            cboReleaseChannel.Items.Clear();
+            int stable = cboReleaseChannel.Items.Add(UpdateChannelInfo.STABLE);
+            int beta = cboReleaseChannel.Items.Add(UpdateChannelInfo.PREVIEW);
+            int dev = cboReleaseChannel.Items.Add(UpdateChannelInfo.NIGHTLY);
+            cboReleaseChannel.SelectedIndex = Properties.OptionsUpdatesPage.Default.UpdateChannel switch
+            {
+                UpdateChannelInfo.STABLE => stable,
+                UpdateChannelInfo.PREVIEW => beta,
+                UpdateChannelInfo.NIGHTLY => dev,
+                _ => stable,
+            };
+        }
+
+        /// <summary>
+        /// Checks if updates are forbidden based on registry settings.
+        /// </summary>
+        private static bool UpdatesForbidden()
+        {
+            return !CommonRegistrySettings.AllowCheckForUpdates
+                || (!CommonRegistrySettings.AllowCheckForUpdatesAutomatical
+                && !CommonRegistrySettings.AllowCheckForUpdatesManual);
+        }
+
+        /// <summary>
+        /// Checks if specific registry settings related to updates page are used.
+        /// </summary>
+        private bool ShowRegistrySettingsUsedInfo()
+        {
+            return !CommonRegistrySettings.AllowCheckForUpdatesAutomatical
+                || !CommonRegistrySettings.AllowCheckForUpdatesManual
+                || pageRegSettingsInstance.CheckForUpdatesFrequencyDays.IsSet
+                || pageRegSettingsInstance.UpdateChannel.IsSet
+                || pageRegSettingsInstance.UseProxyForUpdates.IsSet
+                || pageRegSettingsInstance.ProxyAddress.IsSet
+                || pageRegSettingsInstance.ProxyPort.IsSet
+                || pageRegSettingsInstance.UseProxyAuthentication.IsSet
+                || pageRegSettingsInstance.ProxyAuthUser.IsSet
+                || pageRegSettingsInstance.ProxyAuthPass.IsSet;
         }
 
         #endregion

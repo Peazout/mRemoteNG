@@ -6,13 +6,17 @@ using mRemoteNG.Properties;
 using mRemoteNG.Security.SymmetricEncryption;
 using mRemoteNG.Resources.Language;
 using System.Runtime.Versioning;
+using mRemoteNG.Config.Settings.Registry;
 
 namespace mRemoteNG.UI.Forms.OptionsPages
 {
     [SupportedOSPlatform("windows")]
     public sealed partial class SqlServerPage
     {
+        #region Private Fields
+        private OptRegistrySqlServerPage pageRegSettingsInstance;
         private readonly DatabaseConnectionTester _databaseConnectionTester;
+        #endregion
 
         public SqlServerPage()
         {
@@ -42,6 +46,7 @@ namespace mRemoteNG.UI.Forms.OptionsPages
             lblSQLPassword.Text = Language.Password;
             lblSQLReadOnly.Text = Language.ReadOnly;
             btnTestConnection.Text = Language.TestConnection;
+            lblRegistrySettingsUsedInfo.Text = Language.OptionsCompanyPolicyMessage;
         }
 
         public override void LoadSettings()
@@ -51,7 +56,7 @@ namespace mRemoteNG.UI.Forms.OptionsPages
             txtSQLServer.Text = Properties.OptionsDBsPage.Default.SQLHost;
             txtSQLDatabaseName.Text = Properties.OptionsDBsPage.Default.SQLDatabaseName;
             txtSQLUsername.Text = Properties.OptionsDBsPage.Default.SQLUser;
-            var cryptographyProvider = new LegacyRijndaelCryptographyProvider();
+            LegacyRijndaelCryptographyProvider cryptographyProvider = new();
             txtSQLPassword.Text = cryptographyProvider.Decrypt(Properties.OptionsDBsPage.Default.SQLPass, Runtime.EncryptionKey);
             chkSQLReadOnly.Checked = Properties.OptionsDBsPage.Default.SQLReadOnly;
             lblTestConnectionResults.Text = "";
@@ -60,14 +65,14 @@ namespace mRemoteNG.UI.Forms.OptionsPages
         public override void SaveSettings()
         {
             base.SaveSettings();
-            var sqlServerWasPreviouslyEnabled = Properties.OptionsDBsPage.Default.UseSQLServer;
+            bool sqlServerWasPreviouslyEnabled = Properties.OptionsDBsPage.Default.UseSQLServer;
 
             Properties.OptionsDBsPage.Default.UseSQLServer = chkUseSQLServer.Checked;
             Properties.OptionsDBsPage.Default.SQLServerType = txtSQLType.Text;
             Properties.OptionsDBsPage.Default.SQLHost = txtSQLServer.Text;
             Properties.OptionsDBsPage.Default.SQLDatabaseName = txtSQLDatabaseName.Text;
             Properties.OptionsDBsPage.Default.SQLUser = txtSQLUsername.Text;
-            var cryptographyProvider = new LegacyRijndaelCryptographyProvider();
+            LegacyRijndaelCryptographyProvider cryptographyProvider = new();
             Properties.OptionsDBsPage.Default.SQLPass = cryptographyProvider.Encrypt(txtSQLPassword.Text, Runtime.EncryptionKey);
             Properties.OptionsDBsPage.Default.SQLReadOnly = chkSQLReadOnly.Checked;
 
@@ -75,6 +80,48 @@ namespace mRemoteNG.UI.Forms.OptionsPages
                 ReinitializeSqlUpdater();
             else if (!Properties.OptionsDBsPage.Default.UseSQLServer && sqlServerWasPreviouslyEnabled)
                 DisableSql();
+        }
+
+        public override void LoadRegistrySettings()
+        {
+            Type settingsType = typeof(OptRegistrySqlServerPage);
+            RegistryLoader.RegistrySettings.TryGetValue(settingsType, out var settings);
+            pageRegSettingsInstance = settings as OptRegistrySqlServerPage;
+
+            RegistryLoader.Cleanup(settingsType);
+
+            // Skip validation of SQL Server registry settings if not set in the registry.
+            if (!pageRegSettingsInstance.UseSQLServer.IsSet)
+                return;
+
+            // Updates the visibility of the information label indicating whether registry settings are used.
+            lblRegistrySettingsUsedInfo.Visible = true;
+            DisableControl(chkUseSQLServer);
+
+            // End validation of SQL Server registry settings if UseSQLServer is false.
+            if (!Properties.OptionsDBsPage.Default.UseSQLServer)
+                return;
+
+            // ***
+            // Disable controls based on the registry settings.
+            //
+            if (pageRegSettingsInstance.SQLServerType.IsSet)
+                DisableControl(txtSQLType);
+
+            if (pageRegSettingsInstance.SQLHost.IsSet)
+                DisableControl(txtSQLServer);
+
+            if (pageRegSettingsInstance.SQLDatabaseName.IsSet)
+                DisableControl(txtSQLDatabaseName);
+
+            if (pageRegSettingsInstance.SQLUser.IsSet)
+                DisableControl(txtSQLUsername);
+
+            if (pageRegSettingsInstance.SQLPassword.IsSet)
+                DisableControl(txtSQLPassword);
+
+            if (pageRegSettingsInstance.SQLReadOnly.IsSet)
+                DisableControl(chkSQLReadOnly);
         }
 
         private static void ReinitializeSqlUpdater()
@@ -96,8 +143,17 @@ namespace mRemoteNG.UI.Forms.OptionsPages
             toggleSQLPageControls(chkUseSQLServer.Checked);
         }
 
+        /// <summary>
+        /// Enable or disable SQL connection page controls based on SQL server settings availability.
+        /// Controls are enabled if corresponding registry settings are not set, allowing user interaction
+        /// when SQL server usage is enabled.
+        /// </summary>
+        /// <param name="useSQLServer">Flag indicating whether SQL server functionality is enabled.</param>
         private void toggleSQLPageControls(bool useSQLServer)
         {
+            if (!chkUseSQLServer.Enabled) return;
+
+            pnlSQLCon.Enabled = useSQLServer;
             lblSQLType.Enabled = useSQLServer;
             lblSQLServer.Enabled = useSQLServer;
             lblSQLDatabaseName.Enabled = useSQLServer;
@@ -111,21 +167,21 @@ namespace mRemoteNG.UI.Forms.OptionsPages
             txtSQLPassword.Enabled = useSQLServer;
             chkSQLReadOnly.Enabled = useSQLServer;
             btnTestConnection.Enabled = useSQLServer;
-        }
+            }
 
         private async void btnTestConnection_Click(object sender, EventArgs e)
         {
-            var type = txtSQLType.Text;
-            var server = txtSQLServer.Text;
-            var database = txtSQLDatabaseName.Text;
-            var username = txtSQLUsername.Text;
-            var password = txtSQLPassword.Text;
+            string type = txtSQLType.Text;
+            string server = txtSQLServer.Text;
+            string database = txtSQLDatabaseName.Text;
+            string username = txtSQLUsername.Text;
+            string password = txtSQLPassword.Text;
 
             lblTestConnectionResults.Text = Language.TestingConnection;
             imgConnectionStatus.Image = Properties.Resources.Loading_Spinner;
             btnTestConnection.Enabled = false;
 
-            var connectionTestResult =
+            ConnectionTestResult connectionTestResult =
                 await _databaseConnectionTester.TestConnectivity(type, server, database, username, password);
 
             btnTestConnection.Enabled = true;
